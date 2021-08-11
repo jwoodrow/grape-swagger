@@ -40,13 +40,13 @@ describe GrapeSwagger::DocMethods::MoveParams do
     describe 'movable params' do
       specify 'allowed verbs' do
         allowed_verbs.each do |verb|
-          expect(subject.can_be_moved?(movable_params, verb)).to be true
+          expect(subject.can_be_moved?(verb, movable_params)).to be true
         end
       end
 
       specify 'not allowed verbs' do
         not_allowed_verbs.each do |verb|
-          expect(subject.can_be_moved?(movable_params, verb)).to be false
+          expect(subject.can_be_moved?(verb, movable_params)).to be false
         end
       end
     end
@@ -54,13 +54,13 @@ describe GrapeSwagger::DocMethods::MoveParams do
     describe 'not movable params' do
       specify 'allowed verbs' do
         allowed_verbs.each do |verb|
-          expect(subject.can_be_moved?(not_movable_params, verb)).to be false
+          expect(subject.can_be_moved?(verb, not_movable_params)).to be false
         end
       end
 
       specify 'not allowed verbs' do
         not_allowed_verbs.each do |verb|
-          expect(subject.can_be_moved?(not_movable_params, verb)).to be false
+          expect(subject.can_be_moved?(verb, not_movable_params)).to be false
         end
       end
     end
@@ -97,7 +97,7 @@ describe GrapeSwagger::DocMethods::MoveParams do
     let(:route_options) { { requirements: {} } }
     describe 'POST' do
       let(:params) { paths[path][:post][:parameters] }
-      let(:route) { Grape::Router::Route.new('POST', path.dup, route_options) }
+      let(:route) { Grape::Router::Route.new('POST', path.dup, **route_options) }
 
       specify do
         subject.to_definition(path, params, route, definitions)
@@ -113,7 +113,7 @@ describe GrapeSwagger::DocMethods::MoveParams do
 
     describe 'POST' do
       let(:params) { paths['/in_body/{key}'][:put][:parameters] }
-      let(:route) { Grape::Router::Route.new('PUT', path.dup, route_options) }
+      let(:route) { Grape::Router::Route.new('PUT', path.dup, **route_options) }
 
       specify do
         subject.to_definition(path, params, route, definitions)
@@ -323,268 +323,6 @@ describe GrapeSwagger::DocMethods::MoveParams do
           ]
         end
         it { expect(params).to eql expected_params }
-      end
-    end
-
-    describe 'prepare_nested_types' do
-      before :each do
-        subject.send(:prepare_nested_types, params)
-      end
-
-      let(:params) do
-        [
-          {
-            in: 'body',
-            name: 'address[street_lines]',
-            description: 'street lines',
-            type: 'array',
-            items: {
-              type: 'string'
-            },
-            required: true
-          }
-        ]
-      end
-
-      context 'when params contains nothing with :items key' do
-        let(:params) do
-          [
-            {
-              in: 'body',
-              name: 'phone_number',
-              description: 'phone number',
-              type: 'string',
-              required: true
-            }
-          ]
-        end
-
-        let(:expected_params) do
-          [
-            {
-              in: 'body',
-              name: 'phone_number',
-              description: 'phone number',
-              type: 'string',
-              required: true
-            }
-          ]
-        end
-
-        it 'does nothing' do
-          expect(params).to eq expected_params
-        end
-      end
-
-      context 'when params contains :items key with array type' do
-        let(:params) do
-          [
-            {
-              in: 'body',
-              name: 'address_street_lines',
-              description: 'street lines',
-              type: 'array',
-              items: {
-                type: 'array'
-              },
-              required: true
-            }
-          ]
-        end
-
-        let(:expected_params) do
-          [
-            {
-              in: 'body',
-              name: 'address_street_lines',
-              description: 'street lines',
-              type: 'string',
-              required: true
-            }
-          ]
-        end
-
-        it 'sets type to string and removes :items' do
-          expect(params).to eq expected_params
-        end
-      end
-
-      context 'when params contains :items key with $ref' do
-        let(:params) do
-          [
-            {
-              in: 'body',
-              name: 'address_street_lines',
-              description: 'street lines',
-              type: 'array',
-              items: {
-                '$ref' => '#/definitions/StreetLine'
-              },
-              required: true
-            }
-          ]
-        end
-
-        let(:expected_params) do
-          [
-            {
-              in: 'body',
-              name: 'address_street_lines',
-              description: 'street lines',
-              type: 'object',
-              items: {
-                '$ref' => '#/definitions/StreetLine'
-              },
-              required: true
-            }
-          ]
-        end
-
-        it 'sets type to object and does not remove :items' do
-          expect(params).to eq expected_params
-        end
-      end
-
-      context 'when params contains :items without $ref or array type' do
-        let(:params) do
-          [
-            {
-              in: 'body',
-              name: 'address_street_lines',
-              description: 'street lines',
-              type: 'array',
-              items: {
-                type: 'string'
-              },
-              required: true
-            }
-          ]
-        end
-
-        let(:expected_params) do
-          [
-            {
-              in: 'body',
-              name: 'address_street_lines',
-              description: 'street lines',
-              type: 'string',
-              required: true
-            }
-          ]
-        end
-
-        it 'sets type to :items :type and removes :items' do
-          expect(params).to eq expected_params
-        end
-      end
-
-      context 'when params contains :items key with :format' do
-        let(:params) do
-          [
-            {
-              in: 'body',
-              name: 'street_number',
-              description: 'street number',
-              type: 'array',
-              items: {
-                type: 'integer',
-                format: 'int32'
-              },
-              required: true
-            }
-          ]
-        end
-
-        let(:expected_params) do
-          [
-            {
-              in: 'body',
-              name: 'street_number',
-              description: 'street number',
-              type: 'integer',
-              format: 'int32',
-              required: true
-            }
-          ]
-        end
-
-        it 'sets format and removes :items' do
-          expect(params).to eq expected_params
-        end
-      end
-    end
-
-    describe 'recursive_call' do
-      before :each do
-        subject.send(:recursive_call, properties, 'test', nested_params)
-      end
-
-      let(:properties) { {} }
-
-      context 'when nested params is an array' do
-        let(:nested_params) do
-          [
-            {
-              in: 'body',
-              name: 'aliases',
-              description: 'The aliases of test.',
-              type: 'array',
-              items: { type: 'string' },
-              required: true
-            }
-          ]
-        end
-
-        let(:expected_properties) do
-          {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                aliases: {
-                  type: 'string',
-                  description: 'The aliases of test.'
-                }
-              },
-              required: [:aliases]
-            }
-          }
-        end
-
-        it 'adds property as symbol with array type and items' do
-          expect(properties[:test]).to eq expected_properties
-        end
-      end
-
-      context 'when nested params is not an array' do
-        let(:nested_params) do
-          [
-            {
-              in: 'body',
-              name: 'id',
-              description: 'The unique ID of test.',
-              type: 'string',
-              required: true
-            }
-          ]
-        end
-
-        let(:expected_properties) do
-          {
-            type: 'object',
-            required: [:id],
-            properties: {
-              id: {
-                type: 'string',
-                description: 'The unique ID of test.'
-              }
-            }
-          }
-        end
-
-        it 'adds property as symbol with object type' do
-          expect(properties[:test]).to eq expected_properties
-        end
       end
     end
 

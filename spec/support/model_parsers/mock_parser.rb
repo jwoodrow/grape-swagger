@@ -40,21 +40,37 @@ RSpec.shared_context 'mock swagger example' do
       end
 
       class UseNestedWithAddress < OpenStruct; end
+
       class TypedDefinition < OpenStruct; end
+
       class UseItemResponseAsType < OpenStruct; end
+
       class OtherItem < OpenStruct; end
+
       class EnumValues < OpenStruct; end
+
       class AliasedThing < OpenStruct; end
+
       class FourthLevel < OpenStruct; end
+
       class ThirdLevel < OpenStruct; end
+
       class SecondLevel < OpenStruct; end
+
       class FirstLevel < OpenStruct; end
+
       class QueryInputElement < OpenStruct; end
+
       class QueryInput < OpenStruct; end
+
       class ApiError < OpenStruct; end
+
       class SecondApiError < OpenStruct; end
+
       class RecursiveModel < OpenStruct; end
+
       class DocumentedHashAndArrayModel < OpenStruct; end
+
       module NestedModule
         class ApiResponse < OpenStruct; end
       end
@@ -112,7 +128,7 @@ RSpec.shared_context 'mock swagger example' do
             'description' => "it's a mock"
           }
         },
-        'description' => 'This returns something'
+        'description' => 'ApiError model'
       },
       'UseItemResponseAsType' => {
         'type' => 'object',
@@ -122,7 +138,7 @@ RSpec.shared_context 'mock swagger example' do
             'description' => "it's a mock"
           }
         },
-        'description' => 'This returns something'
+        'description' => 'UseItemResponseAsType model'
       }
     }
   end
@@ -137,7 +153,7 @@ RSpec.shared_context 'mock swagger example' do
             'description' => "it's a mock"
           }
         },
-        'description' => 'This returns something'
+        'description' => 'UseResponse model'
       },
       'ApiError' => {
         'type' => 'object',
@@ -147,7 +163,7 @@ RSpec.shared_context 'mock swagger example' do
             'description' => "it's a mock"
           }
         },
-        'description' => 'This returns something'
+        'description' => 'ApiError model'
       }
     }
   end
@@ -162,7 +178,7 @@ RSpec.shared_context 'mock swagger example' do
             'description' => "it's a mock"
           }
         },
-        'description' => 'This returns something'
+        'description' => 'ApiError model'
       }
     }
   end
@@ -519,7 +535,7 @@ RSpec.shared_context 'mock swagger example' do
               'description' => "it's a mock"
             }
           },
-          'description' => 'nested route inside namespace'
+          'description' => 'QueryInput model'
         },
         'ApiError' => {
           'type' => 'object',
@@ -529,7 +545,7 @@ RSpec.shared_context 'mock swagger example' do
               'description' => "it's a mock"
             }
           },
-          'description' => 'This gets Things.'
+          'description' => 'ApiError model'
         },
         'Something' => {
           'type' => 'object',
@@ -539,7 +555,7 @@ RSpec.shared_context 'mock swagger example' do
               'description' => "it's a mock"
             }
           },
-          'description' => 'This gets Things.'
+          'description' => 'Something model'
         }
       }
     }

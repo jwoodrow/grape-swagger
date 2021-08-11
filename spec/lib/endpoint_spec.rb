@@ -49,7 +49,7 @@ describe Grape::Endpoint do
   describe 'parse_request_params' do
     let(:subject) { GrapeSwagger::Endpoint::ParamsParser }
     before do
-      subject.send(:parse_request_params, params, {})
+      subject.send(:parse_request_params, params, {}, nil)
     end
 
     context 'when params do not contain an array' do
@@ -109,7 +109,7 @@ describe Grape::Endpoint do
           ['id', { required: true, type: 'String' }],
           ['description', { required: false, type: 'String' }],
           ['stuffs', { required: true, type: 'Array', is_array: true }],
-          ['stuffs[id]', { required: true, type: 'String', is_array: true }]
+          ['stuffs[id]', { required: true, type: 'String' }]
         ]
       end
 
@@ -138,8 +138,8 @@ describe Grape::Endpoint do
             ['stuffs', { required: true, type: 'Array', is_array: true }],
             ['stuffs[owners]', { required: true, type: 'Array', is_array: true }],
             ['stuffs[creators]', { required: true, type: 'Array', is_array: true }],
-            ['stuffs[owners][id]', { required: true, type: 'String', is_array: true }],
-            ['stuffs[creators][id]', { required: true, type: 'String', is_array: true }],
+            ['stuffs[owners][id]', { required: true, type: 'String' }],
+            ['stuffs[creators][id]', { required: true, type: 'String' }],
             ['stuffs_and_things', { required: true, type: 'String' }]
           ]
         end

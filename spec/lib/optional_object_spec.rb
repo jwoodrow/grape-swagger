@@ -36,11 +36,9 @@ describe GrapeSwagger::DocMethods::OptionalObject do
     end
 
     describe 'option is a proc' do
-      # rubocop:disable RegexpMatch
       let(:options) do
         { host: proc { |request| request.host =~ /^example/ ? '/api-example' : '/api' } }
       end
-      # rubocop:enable RegexpMatch
       specify do
         expect(subject.build(key, options, request)).to eql '/api-example'
       end

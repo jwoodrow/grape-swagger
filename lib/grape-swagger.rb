@@ -27,10 +27,13 @@ module SwaggerRouting
   def combine_routes(app, doc_klass)
     app.routes.each do |route|
       route_path = route.path
-      route_match = route_path.split(/^.*?#{route.prefix.to_s}/).last
+      route_match = route_path.split(/^.*?#{route.prefix}/).last
       next unless route_match
 
-      route_match = route_match.match('\/([\w|-]*?)[\.\/\(]') || route_match.match('\/([\w|-]*)$')
+      # want to match emojis … ;)
+      # route_match = route_match
+      #   .match('\/([\p{Alnum}|\p{Emoji}|\-|\_]*?)[\.\/\(]') || route_match.match('\/([\p{Alpha}|\p{Emoji}|\-|\_]*)$')
+      route_match = route_match.match('\/([\p{Alnum}|\-|\_]*?)[\.\/\(]') || route_match.match('\/([\p{Alpha}|\-|\_]*)$')
       next unless route_match
 
       resource = route_match.captures.first
@@ -86,7 +89,7 @@ module SwaggerRouting
     route_name = name.match(%r{^/?([^/]*).*$})[1]
     return route_name unless route_name.include? ':'
 
-    matches = name.match(/\/[a-z]+/)
+    matches = name.match(/\/\p{Alpha}+/)
     matches.nil? ? route_name : matches[0].delete('/')
   end
 
@@ -108,8 +111,8 @@ module SwaggerRouting
 end
 
 module SwaggerDocumentationAdder
-  attr_accessor :combined_namespaces, :combined_namespace_identifiers
-  attr_accessor :combined_routes, :combined_namespace_routes
+  attr_accessor :combined_namespaces, :combined_namespace_identifiers, :combined_routes, :combined_namespace_routes
+
   include SwaggerRouting
 
   def add_swagger_documentation(options = {})

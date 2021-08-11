@@ -49,14 +49,26 @@ describe GrapeSwagger::DocMethods::DataType do
     it { is_expected.to eq 'MyInteger' }
   end
 
+  describe 'Types in array with inherited entity_name' do
+    before do
+      stub_const 'EntityBase', Class.new
+      allow(EntityBase).to receive(:entity_name).and_return 'MyInteger'
+      stub_const 'MyEntity', Class.new(EntityBase)
+    end
+
+    let(:value) { { type: '[MyEntity]' } }
+
+    it { is_expected.to eq 'MyInteger' }
+  end
+
   describe 'Rack::Multipart::UploadedFile' do
     let(:value) { { type: Rack::Multipart::UploadedFile } }
 
     it { is_expected.to eq 'file' }
   end
 
-  describe 'Virtus::Attribute::Boolean' do
-    let(:value) { { type: Virtus::Attribute::Boolean } }
+  describe 'Grape::API::Boolean' do
+    let(:value) { { type: Grape::API::Boolean } }
 
     it { is_expected.to eq 'boolean' }
   end

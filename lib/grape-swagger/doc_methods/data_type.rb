@@ -16,7 +16,7 @@ module GrapeSwagger
             'object'
           when 'Rack::Multipart::UploadedFile', 'File'
             'file'
-          when 'Virtus::Attribute::Boolean'
+          when 'Grape::API::Boolean'
             'boolean'
           when 'BigDecimal'
             'double'
@@ -48,14 +48,14 @@ module GrapeSwagger
         end
 
         def parse_entity_name(model)
-          if model.methods(false).include?(:entity_name)
+          if model.respond_to?(:entity_name)
             model.entity_name
           elsif model.to_s.end_with?('::Entity', '::Entities')
-            model.to_s.split('::')[-2]
-          elsif model.respond_to?(:name)
-            model.name.demodulize.camelize
+            model.to_s.split('::')[0..-2].join('_')
+          elsif model.to_s.start_with?('Entity::', 'Entities::', 'Representable::')
+            model.to_s.split('::')[1..-1].join('_')
           else
-            model.to_s.split('::').last
+            model.to_s.split('::').join('_')
           end
         end
 
