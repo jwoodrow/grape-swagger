@@ -10,16 +10,24 @@ module GrapeSwagger
       include Rack::Test::Methods
 
       attr_reader :oapi
-      attr_reader :api_class
 
       def initialize(api_class)
         super()
 
-        @api_class = api_class
+        if api_class.is_a? String
+          @api_class_name = api_class
+        else
+          @api_class = api_class
+        end
+
         define_tasks
       end
 
       private
+
+      def api_class
+        @api_class ||= @api_class_name.constantize
+      end
 
       def define_tasks
         namespace :oapi do
@@ -66,6 +74,7 @@ module GrapeSwagger
 
       # helper methods
       #
+      # rubocop:disable Style/StringConcatenation
       def make_request
         get url_for
 
@@ -75,6 +84,7 @@ module GrapeSwagger
           )
         ) + "\n"
       end
+      # rubocop:enable Style/StringConcatenation
 
       def url_for
         oapi_route = api_class.routes[-2]

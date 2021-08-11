@@ -55,6 +55,8 @@ describe 'definition names' do
             class Class7
               class SeventhEntity < Class6::SixthEntity
                 expose :seventh_thing
+
+                private_class_method :entity_name
               end
             end
           end
@@ -82,11 +84,11 @@ describe 'definition names' do
     JSON.parse(last_response.body)['definitions']
   end
 
-  specify { expect(subject).to include 'Class1' }
-  specify { expect(subject).to include 'Class2' }
+  specify { expect(subject).to include 'TestDefinition_DummyEntities_WithVeryLongName_AnotherGroupingModule_Class1' }
+  specify { expect(subject).to include 'TestDefinition_DummyEntities_WithVeryLongName_AnotherGroupingModule_Class2' }
   specify { expect(subject).to include 'FooKlass' }
-  specify { expect(subject).to include 'FourthEntity' }
-  specify { expect(subject).to include 'FithEntity' }
+  specify { expect(subject).to include 'TestDefinition_DummyEntities_WithVeryLongName_AnotherGroupingModule_Class4_FourthEntity' }
+  specify { expect(subject).to include 'TestDefinition_DummyEntities_WithVeryLongName_AnotherGroupingModule_Class5_FithEntity' }
   specify { expect(subject).to include 'BarKlass' }
-  specify { expect(subject).to include 'SeventhEntity' }
+  specify { expect(subject).to include 'TestDefinition_DummyEntities_WithVeryLongName_AnotherGroupingModule_Class7_SeventhEntity' }
 end

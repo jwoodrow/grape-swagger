@@ -1,5 +1,43 @@
 ## Upgrading Grape-swagger
 
+### Upgrading to >= 1.4.0
+
+- Official support for ruby < 2.5 removed, ruby 2.5 only in testing mode, but no support.
+
+### Upgrading to >= 1.3.0
+
+- The model (entity) description no longer comes from the route description. It will have a default value: `<<EntityName>> model`.
+
+### Upgrading to >= 1.2.0
+
+- The entity_name class method is now called on parent classes for inherited entities. Now you can do this
+
+```ruby
+module Some::Long::Module
+  class Base < Grape::Entity
+    # ... other shared logic
+    def self.entity_name
+      "V2::#{self.to_s.demodulize}"
+    end
+  end
+
+  def MyEntity < Base
+    # ....
+  end
+
+  def OtherEntity < Base
+    # revert back to the default behavior by hiding the method
+    private_class_method :entity_name
+  end
+end
+```
+
+- Full class name is modified to use `_` separator (e.g. `A_B_C` instead of `A::B::C`).
+
+### Upgrading to >= 1.1.0
+
+Full class name is used for referencing entity by default (e.g. `A::B::C` instead of just `C`). `Entity` and `Entities` suffixes and prefixes are omitted (e.g. if entity name is `Entities::SomeScope::MyFavourite::Entity` only `SomeScope::MyFavourite` will be used).
+
 ### Upgrading to >= 0.26.1
 
 The format can now be specified,
