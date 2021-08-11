@@ -15,7 +15,7 @@ Gemspec/RequiredRubyVersion:
 
 # Offense count: 30
 Metrics/AbcSize:
-  Max: 59
+  Max: 65
 
 # Offense count: 10
 Metrics/CyclomaticComplexity:
@@ -24,16 +24,22 @@ Metrics/CyclomaticComplexity:
 # Offense count: 22
 # Configuration parameters: CountComments, ExcludedMethods.
 Metrics/MethodLength:
-  Max: 45
+  Max: 50
+
+Metrics/ModuleLength:
+  Max: 350
 
 # Offense count: 7
 Metrics/PerceivedComplexity:
-  Max: 16
+  Max: 20
+  # ExcludedMethods:
+  #   - setup
 
 # Offense count: 3
 Style/ClassVars:
   Exclude:
-    - 'lib/grape-swagger/doc_methods.rb'
+    - 'lib/grape-swagger/swagger_2/doc_methods.rb'
+    - 'lib/grape-swagger/openapi_3/doc_methods.rb'
 
 # Offense count: 22
 Style/Documentation:
