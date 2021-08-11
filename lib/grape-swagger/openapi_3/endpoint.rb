@@ -5,13 +5,13 @@ require 'active_support/core_ext/string/inflections'
 require 'grape-swagger/endpoint/params_parser'
 
 module Grape
-  class Endpoint
+  module OpenAPI3Endpoint
     def content_types_for(target_class)
       content_types = (target_class.content_types || {}).values
 
       if content_types.empty?
         formats       = [target_class.format, target_class.default_format].compact.uniq
-        formats       = Grape::Formatter.formatters(**{}).keys if formats.empty?
+        formats       = Grape::Formatter.formatters({}).keys if formats.empty?
         content_types = Grape::ContentTypes::CONTENT_TYPES.select do |content_type, _mime_type|
           formats.include? content_type
         end.values
@@ -20,21 +20,28 @@ module Grape
       content_types.uniq
     end
 
-    # swagger spec2.0 related parts
+    # openapi 3.0 related parts
     #
     # required keys for SwaggerObject
-    def swagger_object(target_class, request, options)
+    def swagger_object(_target_class, request, options)
+      url = GrapeSwagger::DocMethods::OptionalObject.build(:host, options, request)
+      base_path = GrapeSwagger::DocMethods::OptionalObject.build(:base_path, options, request)
+      servers = options[:servers] || [{ url: "#{request.scheme}://#{url}#{base_path}" }]
+      servers = servers.is_a?(Hash) ? [servers] : servers
+
       object = {
         info: info_object(options[:info].merge(version: options[:doc_version])),
-        swagger: '2.0',
-        produces: content_types_for(target_class),
-        authorizations: options[:authorizations],
-        securityDefinitions: options[:security_definitions],
+        openapi: '3.0.0',
         security: options[:security],
-        host: GrapeSwagger::DocMethods::OptionalObject.build(:host, options, request),
-        basePath: GrapeSwagger::DocMethods::OptionalObject.build(:base_path, options, request),
-        schemes: options[:schemes].is_a?(String) ? [options[:schemes]] : options[:schemes]
+        authorizations: options[:authorizations],
+        servers: servers
       }
+
+      if options[:security_definitions] || options[:security]
+        components = { securitySchemes: options[:security_definitions] }
+        components.delete_if { |_, value| value.blank? }
+        object[:components] = components
+      end
 
       GrapeSwagger::DocMethods::Extensions.add_extensions_to_root(options, object)
       object.delete_if { |_, value| value.blank? }
@@ -75,14 +82,17 @@ module Grape
     end
 
     # building path and definitions objects
-    def path_and_definition_objects(namespace_routes, options)
+    def path_and_definition_objects(namespace_routes, target_class, options)
+      @content_types = content_types_for(target_class)
+
       @paths = {}
       @definitions = {}
-      add_definitions_from options[:models]
-      namespace_routes.each_value do |routes|
+      namespace_routes.each_key do |key|
+        routes = namespace_routes[key]
         path_item(routes, options)
       end
 
+      add_definitions_from options[:models]
       [@paths, @definitions]
     end
 
@@ -116,15 +126,23 @@ module Grape
       method = {}
       method[:summary]     = summary_object(route)
       method[:description] = description_object(route)
-      method[:produces]    = produces_object(route, options[:produces] || options[:format])
-      method[:consumes]    = consumes_object(route, options[:format])
-      method[:parameters]  = params_object(route, options, path)
+
+      parameters = params_object(route, options, path).partition { |p| p[:in] == 'body' || p[:in] == 'formData' }
+
+      method[:parameters]  = parameters.last
       method[:security]    = security_object(route)
-      method[:responses]   = response_object(route, options)
+      if %w[POST PUT PATCH].include?(route.request_method)
+        consumes = consumes_object(route, options[:format])
+        method[:requestBody] = response_body_object(route, path, consumes, parameters.first)
+      end
+
+      produces = produces_object(route, options[:produces] || options[:format])
+
+      method[:responses]   = response_object(route, produces)
       method[:tags]        = route.options.fetch(:tags, tag_object(route, path))
       method[:operationId] = GrapeSwagger::DocMethods::OperationId.build(route, path)
       method[:deprecated] = deprecated_object(route)
-      method.delete_if { |_, value| value.nil? }
+      method.delete_if { |_, value| value.blank? }
 
       [route.request_method.downcase.to_sym, method]
     end
@@ -148,6 +166,7 @@ module Grape
     def description_object(route)
       description = route.description if route.description.present?
       description = route.options[:detail] if route.options.key?(:detail)
+      description ||= ''
 
       description
     end
@@ -175,59 +194,109 @@ module Grape
     end
 
     def params_object(route, options, path)
-      parameters = build_request_params(route, options).each_with_object([]) do |(param, value), memo|
-        next if hidden_parameter?(value)
-
+      parameters = partition_params(route, options).map do |param, value|
         value = { required: false }.merge(value) if value.is_a?(Hash)
         _, value = default_type([[param, value]]).first if value == ''
-
-        if value.dig(:documentation, :type)
-          expose_params(value[:documentation][:type])
-        elsif value[:type]
+        if value[:type]
           expose_params(value[:type])
+        elsif value[:documentation]
+          expose_params(value[:documentation][:type])
         end
-        memo << GrapeSwagger::DocMethods::ParseParams.call(param, value, path, route, @definitions)
+        GrapeSwagger::DocMethods::OpenAPIParseParams.call(param, value, path, route, @definitions)
       end
 
-      if GrapeSwagger::DocMethods::MoveParams.can_be_moved?(route.request_method, parameters)
-        parameters = GrapeSwagger::DocMethods::MoveParams.to_definition(path, parameters, route, @definitions)
+      if GrapeSwagger::DocMethods::OpenAPIMoveParams.can_be_moved?(parameters, route.request_method)
+        parameters = GrapeSwagger::DocMethods::OpenAPIMoveParams.to_definition(path, parameters, route, @definitions)
       end
 
-      GrapeSwagger::DocMethods::FormatData.to_format(parameters)
-
-      parameters.presence
+      parameters
     end
 
-    def response_object(route, options)
-      codes(route).each_with_object({}) do |value, memo|
-        value[:message] ||= ''
-        memo[value[:code]] = { description: value[:message] ||= '' } unless memo[value[:code]].present?
-        memo[value[:code]][:headers] = value[:headers] if value[:headers]
+    def response_body_object(_, _, consumes, parameters)
+      file_params, other_params = parameters.partition { |p| p[:schema][:type] == 'file' }
+      body_params, form_params = other_params.partition { |p| p[:in] == 'body' || p[:schema][:type] == 'json' }
+      result = consumes.map { |c| response_body_parameter_object(body_params, c) }
 
-        next build_file_response(memo[value[:code]]) if file_response?(value[:model])
+      unless form_params.empty?
+        result << response_body_parameter_object(form_params, 'application/x-www-form-urlencoded')
+      end
+
+      result << response_body_parameter_object(file_params, 'application/octet-stream') unless file_params.empty?
+
+      { content: result.to_h }
+    end
+
+    def response_body_parameter_object(parameters, content_type)
+      properties = parameters.map do |value|
+        value[:schema][:type] = 'object' if value[:schema][:type] == 'json'
+        if value[:schema][:type] == 'file'
+          value[:schema][:format] = 'binary'
+          value[:schema][:type] = 'string'
+        end
+        [value[:name], value.except(:name, :in, :required, :schema).merge(value[:schema])]
+      end.to_h
+      required_values = parameters.select { |param| param[:required] }.map { |required| required[:name] }
+      result = { schema: { type: :object, properties: properties } }
+      result[:schema][:required] = required_values unless required_values.empty?
+      [content_type, result]
+    end
+
+    def response_object(route, content_types)
+      codes = http_codes_from_route(route)
+      codes.map! { |x| x.is_a?(Array) ? { code: x[0], message: x[1], model: x[2], examples: x[3], headers: x[4] } : x }
+
+      codes.each_with_object({}) do |value, memo|
+        value[:message] ||= ''
+        memo[value[:code]] = { description: value[:message] }
+
+        if value[:headers]
+          value[:headers].each do |_, header|
+            header[:schema] = { type: header.delete(:type) }
+          end
+          memo[value[:code]][:headers] = value[:headers]
+        end
+
+        if file_response?(value[:model])
+          memo[value[:code]][:content] = [content_object(value, value[:model], {}, 'application/octet-stream')].to_h
+          next
+        end
+
+        response_model = @item
+        response_model = expose_params_from_model(value[:model]) if value[:model]
 
         if memo.key?(200) && route.request_method == 'DELETE' && value[:model].nil?
           memo[204] = memo.delete(200)
           value[:code] = 204
-          next
         end
 
-        # Explicitly request no model with { model: '' }
-        next if value[:model] == ''
+        next if value[:code] == 204 || value[:code] == 201
 
-        response_model = value[:model] ? expose_params_from_model(value[:model]) : @item
-        next unless @definitions[response_model]
-        next if response_model.start_with?('Swagger_doc')
+        model = !response_model.start_with?('Swagger_doc') && (@definitions[response_model] || value[:model])
 
-        @definitions[response_model][:description] ||= "#{response_model} model"
-        build_memo_schema(memo, route, value, response_model, options)
-        memo[value[:code]][:examples] = value[:examples] if value[:examples]
+        ref = build_reference(route, value, response_model)
+
+        memo[value[:code]][:content] = content_types.map { |c| content_object(value, model, ref, c) }.to_h
+
+        next unless model
+
+        @definitions[response_model][:description] = description_object(route)
       end
     end
 
-    def codes(route)
-      http_codes_from_route(route).map do |x|
-        x.is_a?(Array) ? { code: x[0], message: x[1], model: x[2], examples: x[3], headers: x[4] } : x
+    def content_object(value, model, ref, content_type)
+      if model
+        hash = { schema: ref }
+        if value[:examples]
+          if value[:examples].keys.length == 1
+            hash[:example] = value[:examples].values.first
+          else
+            hash[:examples] = value[:examples].transform_values { |v| { value: v } }
+          end
+        end
+
+        [content_type, hash]
+      else
+        [content_type, {}]
       end
     end
 
@@ -245,87 +314,38 @@ module Grape
     end
 
     def success_codes_from_route(route)
-      if @entity.is_a?(Array)
-        return @entity.map do |entity|
-          success_code_from_entity(route, entity)
-        end
+      default_code = GrapeSwagger::DocMethods::StatusCodes.get[route.request_method.downcase.to_sym]
+      if @entity.is_a?(Hash)
+        default_code[:code] = @entity[:code] if @entity[:code].present?
+        default_code[:model] = @entity[:model] if @entity[:model].present?
+        default_code[:message] = @entity[:message] || route.description || default_code[:message].sub('{item}', @item)
+        default_code[:examples] = @entity[:examples] if @entity[:examples]
+        default_code[:headers] = @entity[:headers] if @entity[:headers]
+      else
+        default_code = GrapeSwagger::DocMethods::StatusCodes.get[route.request_method.downcase.to_sym]
+        default_code[:model] = @entity if @entity
+        default_code[:message] = route.description || default_code[:message].sub('{item}', @item)
       end
 
-      [success_code_from_entity(route, @entity)]
+      [default_code]
     end
 
     def tag_object(route, path)
       version = GrapeSwagger::DocMethods::Version.get(route)
       version = Array(version)
-      prefix = route.prefix.to_s.split('/').reject(&:empty?)
       Array(
         path.split('{')[0].split('/').reject(&:empty?).delete_if do |i|
-          prefix.include?(i) || version.map(&:to_s).include?(i)
+          i == route.prefix.to_s || version.map(&:to_s).include?(i)
         end.first
-      ).presence
+      )
     end
 
     private
 
-    def build_memo_schema(memo, route, value, response_model, options)
-      if memo[value[:code]][:schema] && value[:as]
-        memo[value[:code]][:schema][:properties].merge!(build_reference(route, value, response_model, options))
-
-        if value[:required]
-          memo[value[:code]][:schema][:required] ||= []
-          memo[value[:code]][:schema][:required] << value[:as].to_s
-        end
-
-      elsif value[:as]
-        memo[value[:code]][:schema] = {
-          type: :object,
-          properties: build_reference(route, value, response_model, options)
-        }
-        memo[value[:code]][:schema][:required] = [value[:as].to_s] if value[:required]
-      else
-        memo[value[:code]][:schema] = build_reference(route, value, response_model, options)
-      end
-    end
-
-    def build_reference(route, value, response_model, settings)
+    def build_reference(route, value, response_model)
       # TODO: proof that the definition exist, if model isn't specified
-      reference = if value.key?(:as)
-                    { value[:as] => build_reference_hash(response_model) }
-                  else
-                    build_reference_hash(response_model)
-                  end
-      return reference unless value[:code] < 300
-
-      if value.key?(:as) && value.key?(:is_array)
-        reference[value[:as]] = build_reference_array(reference[value[:as]])
-      elsif route.options[:is_array]
-        reference = build_reference_array(reference)
-      end
-
-      build_root(route, reference, response_model, settings)
-    end
-
-    def build_reference_hash(response_model)
-      { '$ref' => "#/definitions/#{response_model}" }
-    end
-
-    def build_reference_array(reference)
-      { type: 'array', items: reference }
-    end
-
-    def build_root(route, reference, response_model, settings)
-      default_root = response_model.underscore
-      default_root = default_root.pluralize if route.options[:is_array]
-      case route.settings.dig(:swagger, :root)
-      when true
-        { type: 'object', properties: { default_root => reference } }
-      when false
-        reference
-      when nil
-        settings[:add_root] ? { type: 'object', properties: { default_root => reference } } : reference
-      else
-        { type: 'object', properties: { route.settings.dig(:swagger, :root) => reference } }
-      end
+      reference = { '$ref' => "#/components/schemas/#{response_model}" }
+      route.options[:is_array] && value[:code] < 300 ? { type: 'array', items: reference } : reference
     end
 
     def file_response?(value)
@@ -336,13 +356,16 @@ module Grape
       memo['schema'] = { type: 'file' }
     end
 
-    def build_request_params(route, settings)
+    def partition_params(route, settings)
+      declared_params = route.settings[:declared_params] if route.settings[:declared_params].present?
       required = merge_params(route)
       required = GrapeSwagger::DocMethods::Headers.parse(route) + required unless route.headers.nil?
 
       default_type(required)
 
-      request_params = GrapeSwagger::Endpoint::ParamsParser.parse_request_params(required, settings, self)
+      request_params = unless declared_params.nil? && route.headers.nil?
+                         GrapeSwagger::Endpoint::ParamsParser.parse_request_params(required, settings)
+                       end || {}
 
       request_params.empty? ? required : request_params
     end
@@ -380,10 +403,13 @@ module Grape
       parser = GrapeSwagger.model_parsers.find(model)
       raise GrapeSwagger::Errors::UnregisteredParser, "No parser registered for #{model_name}." unless parser
 
-      parsed_response = parser.new(model, self).call
+      properties, required = parser.new(model, self).call
+      unless properties&.any?
+        raise GrapeSwagger::Errors::SwaggerSpec,
+              "Empty model #{model_name}, openapi 3.0 doesn't support empty definitions."
+      end
 
-      @definitions[model_name] =
-        GrapeSwagger::DocMethods::BuildModelDefinition.parse_params_from_model(parsed_response, model, model_name)
+      @definitions[model_name] = GrapeSwagger::DocMethods::BuildModelDefinition.build(model, properties, required)
 
       model_name
     end
@@ -398,36 +424,6 @@ module Grape
       return route_hidden unless route_hidden.is_a?(Proc)
 
       options[:token_owner] ? route_hidden.call(send(options[:token_owner].to_sym)) : route_hidden.call
-    end
-
-    def hidden_parameter?(value)
-      return false if value[:required]
-
-      if value.dig(:documentation, :hidden).is_a?(Proc)
-        value.dig(:documentation, :hidden).call
-      else
-        value.dig(:documentation, :hidden)
-      end
-    end
-
-    def success_code_from_entity(route, entity)
-      default_code = GrapeSwagger::DocMethods::StatusCodes.get[route.request_method.downcase.to_sym]
-      if entity.is_a?(Hash)
-        default_code[:code] = entity[:code] if entity[:code].present?
-        default_code[:model] = entity[:model] if entity[:model].present?
-        default_code[:message] = entity[:message] || route.description || default_code[:message].sub('{item}', @item)
-        default_code[:examples] = entity[:examples] if entity[:examples]
-        default_code[:headers] = entity[:headers] if entity[:headers]
-        default_code[:as] = entity[:as] if entity[:as]
-        default_code[:is_array] = entity[:is_array] if entity[:is_array]
-        default_code[:required] = entity[:required] if entity[:required]
-      else
-        default_code = GrapeSwagger::DocMethods::StatusCodes.get[route.request_method.downcase.to_sym]
-        default_code[:model] = entity if entity
-        default_code[:message] = route.description || default_code[:message].sub('{item}', @item)
-      end
-
-      default_code
     end
   end
 end

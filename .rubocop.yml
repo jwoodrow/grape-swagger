@@ -48,6 +48,14 @@ Lint/RaiseException:
 Lint/StructNewOverride:
   Enabled: true
 
+Lint/EmptyBlock:
+  Exclude:
+    - spec/**/*
+
+Lint/EmptyClass:
+  Exclude:
+    - spec/**/*
+
 # Metrics stuff
 #
 Metrics/BlockLength:
@@ -58,7 +66,7 @@ Metrics/ClassLength:
   Max: 350
 
 Metrics/CyclomaticComplexity:
-  Max: 17
+  Max: 20
 
 Metrics/MethodLength:
   Exclude:
