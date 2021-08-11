@@ -62,7 +62,7 @@ module GrapeSwagger
           end
 
           # OpenAPI 3
-          response[:content].each do |_,v|
+          response[:content].each do |_, v|
             return v[:schema]['$ref'].split('/').last if v[:schema].key?('$ref')
             return v[:schema]['items']['$ref'].split('/').last if v[:schema].key?('items')
           end

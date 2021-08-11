@@ -14,7 +14,7 @@ module GrapeSwagger
 
           # required properties
           @parsed_param = {
-            in:   param_type(value_type),
+            in: param_type(value_type),
             name: settings[:full_name] || param
           }
 
@@ -77,7 +77,8 @@ module GrapeSwagger
             array_items['$ref'] = "#/components/schemas/#{@parsed_param[:schema][:type]}"
           else
             puts value_type.inspect
-            array_items[:type] = type || @parsed_param[:schema][:type] == 'array' ? 'string' : @parsed_param[:schema][:type]
+            array_items[:type] =
+              type || @parsed_param[:schema][:type] == 'array' ? 'string' : @parsed_param[:schema][:type]
           end
           array_items[:format] = @parsed_param.delete(:format) if @parsed_param[:format]
 

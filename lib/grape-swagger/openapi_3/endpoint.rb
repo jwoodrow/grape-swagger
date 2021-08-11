@@ -290,7 +290,7 @@ module Grape
           if value[:examples].keys.length == 1
             hash[:example] = value[:examples].values.first
           else
-            hash[:examples] = value[:examples].map { |k, v| [k, { value: v }] }.to_h
+            hash[:examples] = value[:examples].transform_values { |v| { value: v } }
           end
         end
 
@@ -332,7 +332,7 @@ module Grape
 
     def tag_object(route, path)
       version = GrapeSwagger::DocMethods::Version.get(route)
-      version = [version] unless version.is_a?(Array)
+      version = Array(version)
       Array(
         path.split('{')[0].split('/').reject(&:empty?).delete_if do |i|
           i == route.prefix.to_s || version.map(&:to_s).include?(i)
@@ -349,7 +349,7 @@ module Grape
     end
 
     def file_response?(value)
-      value.to_s.casecmp('file').zero? ? true : false
+      value.to_s.casecmp('file').zero?
     end
 
     def build_file_response(memo)

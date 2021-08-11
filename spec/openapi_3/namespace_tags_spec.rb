@@ -35,12 +35,12 @@ describe 'namespace tags check' do
         namespace :thames do
           desc 'this gets something else',
                headers: {
-                   'XAuthToken' => { description: 'A required header.', required: true },
-                   'XOtherHeader' => { description: 'An optional header.', required: false }
+                 'XAuthToken' => { description: 'A required header.', required: true },
+                 'XOtherHeader' => { description: 'An optional header.', required: false }
                },
                http_codes: [
-                   { code: 403, message: 'invalid pony' },
-                   { code: 405, message: 'no ponies left!' }
+                 { code: 403, message: 'invalid pony' },
+                 { code: 405, message: 'no ponies left!' }
                ]
 
           get '/simple_with_headers' do
@@ -51,7 +51,7 @@ describe 'namespace tags check' do
         namespace :niles do
           desc 'this takes an array of parameters',
                params: {
-                   'items[]' => { description: 'array of items', is_array: true }
+                 'items[]' => { description: 'array of items', is_array: true }
                }
 
           post '/items' do
@@ -62,7 +62,7 @@ describe 'namespace tags check' do
         namespace :niles do
           desc 'this uses a custom parameter',
                params: {
-                   'custom' => { type: CustomType, description: 'array of items', is_array: true }
+                 'custom' => { type: CustomType, description: 'array of items', is_array: true }
                }
 
           get '/custom' do
